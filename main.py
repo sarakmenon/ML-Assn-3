@@ -1,4 +1,6 @@
 import argparse
+from itertools import product
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from ucimlrepo import fetch_ucirepo
@@ -6,7 +8,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
+from sklearn.metrics import accuracy_score, f1_score
+from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
+import matplotlib.pyplot as plt
 
 
 class NeuralNet3:
@@ -120,7 +125,10 @@ class NeuralNet3:
 
         return 0
 
-    def initialize_parameters(self, hidden=[64], activation="relu", seed=42):
+    def initialize_parameters(self, hidden=None, activation="relu", seed=42):
+        if hidden is None:
+            hidden = [64]
+
         self.hidden = hidden
         self.activation = activation
 
@@ -274,7 +282,7 @@ class NeuralNet3:
                 self.weights[i] += self.velocity_w[i]
                 self.biases[i] += self.velocity_b[i]
 
-    def train(self, epochs=100, batch_size=32, learning_rate=0.01, optimizer="sgd", momentum=0.9, seed=42):
+    def train(self, epochs=100, batch_size=32, learning_rate=0.01, optimizer="sgd", momentum=0.9, seed=42, verbose=True):
 
         n_samples = len(self.X_train)
 
@@ -317,16 +325,204 @@ class NeuralNet3:
             self.train_losses.append(train_loss)
             self.val_losses.append(val_loss)
 
-            if (epoch + 1) % 10 == 0 or epoch == 0:
+            if verbose and ((epoch + 1) % 10 == 0 or epoch == 0):
                 print(
                     f"Epoch {epoch + 1}/{epochs} "
                     f"- Train Loss: {train_loss:.4f} "
                     f"- Val Loss: {val_loss:.4f}"
                 )
 
+    def predict(self, X, threshold=0.5):
+        # turn the predicted probabilities into class labels based on the threhsold 
+        probabilities, _, _ = self.forward(X)
+        return (probabilities.ravel() >= threshold).astype(int)
+
+    def evaluate(self, X, y):
+        # use macro f1 in case of class imbalance
+        predictions = self.predict(X)
+        return {
+            "accuracy": accuracy_score(y, predictions),
+            "macro_f1": f1_score(y, predictions, average="macro", zero_division=0),
+        }
+
+    # run all experiment combinations and save the results
+    def run_experiments(
+        self,
+        activations,
+        learning_rates,
+        architectures,
+        optimizers,
+        epochs,
+        batch_size,
+        momentum,
+        seed,
+        output_dir,
+        logistic_max_iter,
+    ):
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        results = []
+        best_by_activation = {}
+
+        # one run for every hyperparameter combo
+        configurations = product(
+            activations, learning_rates, architectures, optimizers
+        )
+        total = (
+            len(activations)
+            * len(learning_rates)
+            * len(architectures)
+            * len(optimizers)
+        )
+
+        for run_number, (activation, learning_rate, hidden, optimizer) in enumerate(
+            configurations, start=1
+        ):
+            # print specifications for this experiment, then setup and train
+            print(
+                f"Experiment {run_number}/{total}: activation={activation}, "
+                f"learning_rate={learning_rate}, hidden={list(hidden)}, "
+                f"optimizer={optimizer}"
+            )
+            self.initialize_parameters(
+                hidden=list(hidden), activation=activation, seed=seed
+            )
+            self.train(
+                epochs=epochs,
+                batch_size=batch_size,
+                learning_rate=learning_rate,
+                optimizer=optimizer,
+                momentum=momentum,
+                seed=seed,
+                verbose=False,
+            )
+
+            train_metrics = self.evaluate(self.X_train, self.y_train)
+            val_metrics = self.evaluate(self.X_val, self.y_val)
+            result = {
+                "activation": activation,
+                "hidden_layers": str(list(hidden)),
+                "optimizer": optimizer,
+                "learning_rate": learning_rate,
+                "momentum": momentum if optimizer == "momentum" else "",
+                "epochs": epochs,
+                "batch_size": batch_size,
+                "seed": seed,
+                "train_accuracy": train_metrics["accuracy"],
+                "train_macro_f1": train_metrics["macro_f1"],
+                "validation_accuracy": val_metrics["accuracy"],
+                "validation_macro_f1": val_metrics["macro_f1"],
+            }
+            results.append(result)
+
+            # choose activation model based on the best validation results
+            current_best = best_by_activation.get(activation)
+            if (
+                current_best is None
+                or val_metrics["macro_f1"] > current_best["validation_macro_f1"]
+            ):
+                # keep a copy since the next run would replace the network parameters
+                best_by_activation[activation] = {
+                    **result,
+                    "weights": [weight.copy() for weight in self.weights],
+                    "biases": [bias.copy() for bias in self.biases],
+                    "train_losses": self.train_losses.copy(),
+                    "val_losses": self.val_losses.copy(),
+                }
+
+        # save final metrics
+        results_frame = pd.DataFrame(results)
+        results_path = output_dir / "experiment_results.csv"
+        results_frame.to_csv(results_path, index=False)
+        print("\nExperiment results (sorted by activation and validation macro-F1):")
+        print(
+            results_frame.sort_values(
+                ["activation", "validation_macro_f1"],
+                ascending=[True, False],
+            ).to_string(index=False, float_format=lambda value: f"{value:.4f}")
+        )
+        print(f"\nFull results saved to {results_path}")
+
+        test_results = []
+        for activation, best in best_by_activation.items():
+            # now run on test set as the final evaluation
+            self.activation = activation
+            self.weights = [weight.copy() for weight in best["weights"]]
+            self.biases = [bias.copy() for bias in best["biases"]]
+            test_metrics = self.evaluate(self.X_test, self.y_test)
+
+            test_results.append({
+                "model": f"Neural network ({activation})",
+                "activation": activation,
+                "hidden_layers": best["hidden_layers"],
+                "optimizer": best["optimizer"],
+                "learning_rate": best["learning_rate"],
+                "test_accuracy": test_metrics["accuracy"],
+                "test_macro_f1": test_metrics["macro_f1"],
+            })
+
+            # generate the learning curve plots for the best combo for each activation function
+            plt.figure()
+            plt.plot(best["train_losses"], label="Training loss")
+            plt.plot(best["val_losses"], label="Validation loss")
+            plt.xlabel("Epoch")
+            plt.ylabel("Binary cross-entropy loss")
+            plt.title(
+                f"{activation} — best validation macro-F1 "
+                f"({best['validation_macro_f1']:.3f})"
+            )
+            plt.legend()
+            plt.tight_layout()
+            plot_path = output_dir / f"learning_curve_{activation}.png"
+            plt.savefig(plot_path)
+            plt.close()
+            print(
+                f"Best {activation} configuration by validation macro-F1: "
+                f"hidden={best['hidden_layers']}, optimizer={best['optimizer']}, "
+                f"learning_rate={best['learning_rate']}"
+            )
+
+        # use logistic regression to create a baseline on the same training split and then evaluate on the test set
+        baseline = LogisticRegression(
+            max_iter=logistic_max_iter,
+            random_state=seed,
+        )
+        baseline.fit(self.X_train, self.y_train)
+        baseline_predictions = baseline.predict(self.X_test)
+        test_results.append({
+            "model": "Logistic regression baseline",
+            "activation": "",
+            "hidden_layers": "",
+            "optimizer": "",
+            "learning_rate": "",
+            "test_accuracy": accuracy_score(self.y_test, baseline_predictions),
+            "test_macro_f1": f1_score(
+                self.y_test,
+                baseline_predictions,
+                average="macro",
+                zero_division=0,
+            ),
+        })
+
+        test_frame = pd.DataFrame(test_results)
+        test_path = output_dir / "best_test_results.csv"
+        test_frame.to_csv(test_path, index=False)
+        print("\nTest results for selected configurations and baseline:")
+        print(test_frame.to_string(index=False, float_format=lambda value: f"{value:.4f}"))
+        print(f"Test results saved to {test_path}")
+        print(f"Learning curves saved in {output_dir}")
+        return results_frame, test_frame
+
 
 if __name__ == "__main__":
+    # user input for the specifications of the network/experiments
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--run-experiments",
+        action="store_true",
+        help="Run the required hyperparameter comparison and baseline.",
+    )
     parser.add_argument("--hidden", nargs="+", type=int, default=[64])
     parser.add_argument(
         "--activation",
@@ -343,18 +539,108 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--experiment-activations",
+        nargs="+",
+        choices=["sigmoid", "tanh", "relu"],
+        default=["sigmoid", "tanh", "relu"],
+    )
+    parser.add_argument(
+        "--experiment-learning-rates",
+        nargs="+",
+        type=float,
+        default=[0.01, 0.001],
+    )
+    parser.add_argument(
+        "--experiment-architectures",
+        nargs="+",
+        default=["64", "64,32"],
+        help="Comma-separated hidden-layer sizes, e.g. 64 64,32.",
+    )
+    parser.add_argument(
+        "--experiment-optimizers",
+        nargs="+",
+        choices=["sgd", "momentum"],
+        default=["sgd", "momentum"],
+    )
+    parser.add_argument("--output-dir", default="results")
+    parser.add_argument("--logistic-max-iter", type=int, default=1000)
     args = parser.parse_args()
 
+    # error checking for invalid user inputs
     if len(args.hidden) not in [1, 2] or any(size <= 0 for size in args.hidden):
-        parser.error("Specify one or two hidden layers with positive sizes.")
+        parser.error("State one or two hidden layers with positive sizes.")
+    if args.epochs <= 0 or args.batch_size <= 0:
+        parser.error("--epochs and --batch-size have to be positive.")
+    if args.learning_rate <= 0 or any(rate <= 0 for rate in args.experiment_learning_rates):
+        parser.error("Learning rates have to be positive.")
+    if args.logistic_max_iter <= 0:
+        parser.error("--logistic-max-iter have to be positive.")
+
+    try:
+        experiment_architectures = [
+            tuple(int(size) for size in architecture.split(","))
+            for architecture in args.experiment_architectures
+        ]
+    except ValueError:
+        parser.error("Experiment architectures have to contain comma-separated integers")
+    if any(
+        not 1 <= len(architecture) <= 2
+        or any(size <= 0 for size in architecture)
+        for architecture in experiment_architectures
+    ):
+        parser.error(
+            "Experiment architectures have to specify one or two positive hidden-layer sizes"
+        )
 
     neural_network = NeuralNet3()
     neural_network.preprocess(seed=args.seed)
 
-    neural_network.initialize_parameters(hidden=args.hidden, activation=args.activation, seed=args.seed)
+    print(f"Random seed: {args.seed}")
 
-    neural_network.train(epochs=args.epochs, batch_size=args.batch_size, learning_rate=args.learning_rate, optimizer=args.optimizer, momentum=args.momentum, seed=args.seed)
+    # run experiments or single model
+    if args.run_experiments:
+        neural_network.run_experiments(
+            activations=args.experiment_activations,
+            learning_rates=args.experiment_learning_rates,
+            architectures=experiment_architectures,
+            optimizers=args.experiment_optimizers,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            momentum=args.momentum,
+            seed=args.seed,
+            output_dir=args.output_dir,
+            logistic_max_iter=args.logistic_max_iter,
+        )
+    else:
+        neural_network.initialize_parameters(
+            hidden=args.hidden,
+            activation=args.activation,
+            seed=args.seed,
+        )
+        neural_network.train(
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+            optimizer=args.optimizer,
+            momentum=args.momentum,
+            seed=args.seed,
+        )
 
-    print(f"\n{args.optimizer.upper()} Results:")
-    print(f"Final Training Loss: {neural_network.train_losses[-1]:.4f}")
-    print(f"Final Validation Loss: {neural_network.val_losses[-1]:.4f}")
+        train_metrics = neural_network.evaluate(
+            neural_network.X_train, neural_network.y_train
+        )
+        val_metrics = neural_network.evaluate(
+            neural_network.X_val, neural_network.y_val
+        )
+        print(f"\n{args.optimizer.upper()} Results:")
+        print(f"Final Training Loss: {neural_network.train_losses[-1]:.4f}")
+        print(f"Final Validation Loss: {neural_network.val_losses[-1]:.4f}")
+        print(
+            f"Training Accuracy: {train_metrics['accuracy']:.4f} "
+            f"(Macro-F1: {train_metrics['macro_f1']:.4f})"
+        )
+        print(
+            f"Validation Accuracy: {val_metrics['accuracy']:.4f} "
+            f"(Macro-F1: {val_metrics['macro_f1']:.4f})"
+        )

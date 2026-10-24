@@ -1,0 +1,34 @@
+# Neural Network ML Assignment #3
+Team: Ifrah Zainab and Kunju Menon
+
+## Dataset
+The project uses the **Drug Consumption (Quantified)** dataset from the UCI
+Machine Learning Repository:
+
+<https://archive.ics.uci.edu/dataset/373/drug+consumption+quantified>
+
+The dataset is fetched at runtime with `ucimlrepo`. The `ecstasy` target is converted to two classes: `CL2` through `CL6` are grouped as use within the last decade (class 1), and the remaining
+labels as no use or last use more than a decade ago (class 0).
+
+## Requirements and installation
+Use Python 3.10 or newer, and install the dependencies:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+## Reproduce the experiment results
+Run the experiment with:
+
+```powershell
+python main.py --run-experiments --epochs 100 --batch-size 32 --seed 42
+```
+
+For just one run of the current best validation-selected configuration, use:
+
+```powershell
+python main.py --activation relu --hidden 64 32 --optimizer momentum --learning-rate 0.001 --momentum 0.9 --epochs 100 --batch-size 32 --seed 42
+```
+
+## Output files
+The experiment writes files to `results/`. View to see the output metrics and graphs.

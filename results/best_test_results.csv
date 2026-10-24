@@ -1,0 +1,5 @@
+model,activation,hidden_layers,optimizer,learning_rate,test_accuracy,test_macro_f1
+Neural network (sigmoid),sigmoid,[64],momentum,0.01,0.696113074204947,0.6882301701168272
+Neural network (tanh),tanh,"[64, 32]",sgd,0.01,0.696113074204947,0.6889314928425359
+Neural network (relu),relu,"[64, 32]",momentum,0.001,0.6925795053003534,0.686934960900248
+Logistic regression baseline,,,,,0.6890459363957597,0.6786083006400991
