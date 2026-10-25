@@ -228,10 +228,7 @@ class NeuralNet3:
         # clip probabilities so the logarithms stay finite
         predictions = np.clip(predictions, 1e-12, 1 - 1e-12)
 
-        loss = -np.mean(
-            y * np.log(predictions)
-            + (1 - y) * np.log(1 - predictions)
-        )
+        loss = -np.mean(y * np.log(predictions) + (1 - y) * np.log(1 - predictions))
 
         return loss
 
@@ -269,15 +266,9 @@ class NeuralNet3:
 
             elif optimizer == "momentum":
                 # momentum keeps part of the previous update
-                self.velocity_w[i] = (
-                    momentum * self.velocity_w[i]
-                    - learning_rate * weight_gradients[i]
-                )
+                self.velocity_w[i] = (momentum * self.velocity_w[i] - learning_rate * weight_gradients[i])
 
-                self.velocity_b[i] = (
-                    momentum * self.velocity_b[i]
-                    - learning_rate * bias_gradients[i]
-                )
+                self.velocity_b[i] = (momentum * self.velocity_b[i] - learning_rate * bias_gradients[i])
 
                 self.weights[i] += self.velocity_w[i]
                 self.biases[i] += self.velocity_b[i]
@@ -333,7 +324,7 @@ class NeuralNet3:
                 )
 
     def predict(self, X, threshold=0.5):
-        # turn the predicted probabilities into class labels based on the threhsold 
+        # turn the predicted probabilities into class labels based on the threshold
         probabilities, _, _ = self.forward(X)
         return (probabilities.ravel() >= threshold).astype(int)
 
@@ -345,17 +336,7 @@ class NeuralNet3:
             "macro_f1": f1_score(y, predictions, average="macro", zero_division=0),
         }
 
-    def compare_optimizers(
-        self,
-        activation,
-        hidden,
-        learning_rate,
-        epochs,
-        batch_size,
-        momentum,
-        seed,
-        output_dir,
-    ):
+    def compare_optimizers(self, activation, hidden, learning_rate, epochs, batch_size, momentum, seed, output_dir):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         losses = {}
@@ -382,11 +363,7 @@ class NeuralNet3:
             # mark the lowest validation loss and when it happened
             best_epoch = int(np.argmin(losses[optimizer])) + 1
             best_loss = min(losses[optimizer])
-            plt.plot(
-                results["epoch"],
-                losses[optimizer],
-                label=f"{optimizer} (min {best_loss:.4f}, epoch {best_epoch})",
-            )
+            plt.plot(results["epoch"], losses[optimizer], label=f"{optimizer} (min {best_loss:.4f}, epoch {best_epoch})")
             print(
                 f"{optimizer}: minimum validation loss {best_loss:.4f} "
                 f"at epoch {best_epoch}"
@@ -408,19 +385,7 @@ class NeuralNet3:
         return results
 
     # run all experiment combinations and save the results
-    def run_experiments(
-        self,
-        activations,
-        learning_rates,
-        architectures,
-        optimizers,
-        epochs,
-        batch_size,
-        momentum,
-        seed,
-        output_dir,
-        logistic_max_iter,
-    ):
+    def run_experiments(self, activations, learning_rates, architectures, optimizers, epochs, batch_size, momentum, seed, output_dir, logistic_max_iter):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -450,15 +415,7 @@ class NeuralNet3:
             self.initialize_parameters(
                 hidden=list(hidden), activation=activation, seed=seed
             )
-            self.train(
-                epochs=epochs,
-                batch_size=batch_size,
-                learning_rate=learning_rate,
-                optimizer=optimizer,
-                momentum=momentum,
-                seed=seed,
-                verbose=False,
-            )
+            self.train(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, optimizer=optimizer, momentum=momentum, seed=seed, verbose=False)
 
             train_metrics = self.evaluate(self.X_train, self.y_train)
             val_metrics = self.evaluate(self.X_val, self.y_val)
