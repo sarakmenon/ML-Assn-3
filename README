@@ -10,6 +10,10 @@ Machine Learning Repository:
 The dataset is fetched at runtime with `ucimlrepo`. The `ecstasy` target is converted to two classes: `CL2` through `CL6` are grouped as use within the last decade (class 1), and the remaining
 labels as no use or last use more than a decade ago (class 0).
 
+## Data split
+The data is split into training, validation, and test sets using a stratified
+70/15/15 split.
+
 ## Requirements and installation
 Use Python 3.10 or newer, and install the dependencies:
 
