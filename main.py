@@ -548,45 +548,17 @@ if __name__ == "__main__":
         help="Compare SGD and momentum on the same model configuration.",
     )
     parser.add_argument("--hidden", nargs="+", type=int, default=[64])
-    parser.add_argument(
-        "--activation",
-        choices=["sigmoid", "tanh", "relu"],
-        default="relu"
-    )
-    parser.add_argument(
-        "--optimizer",
-        choices=["sgd", "momentum"],
-        default="sgd"
-    )
+    parser.add_argument("--activation", choices=["sigmoid", "tanh", "relu"], default="relu")
+    parser.add_argument("--optimizer", choices=["sgd", "momentum"], default="sgd")
     parser.add_argument("--learning-rate", type=float, default=0.01)
     parser.add_argument("--momentum", type=float, default=0.9)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument(
-        "--experiment-activations",
-        nargs="+",
-        choices=["sigmoid", "tanh", "relu"],
-        default=["sigmoid", "tanh", "relu"],
-    )
-    parser.add_argument(
-        "--experiment-learning-rates",
-        nargs="+",
-        type=float,
-        default=[0.01, 0.001],
-    )
-    parser.add_argument(
-        "--experiment-architectures",
-        nargs="+",
-        default=["64", "64,32"],
-        help="Comma-separated hidden-layer sizes, e.g. 64 64,32.",
-    )
-    parser.add_argument(
-        "--experiment-optimizers",
-        nargs="+",
-        choices=["sgd", "momentum"],
-        default=["sgd", "momentum"],
-    )
+    parser.add_argument("--experiment-activations", nargs="+", choices=["sigmoid", "tanh", "relu"], default=["sigmoid", "tanh", "relu"])
+    parser.add_argument("--experiment-learning-rates", nargs="+", type=float, default=[0.01, 0.001])
+    parser.add_argument("--experiment-architectures", nargs="+", default=["64", "64,32"], help="Comma-separated hidden-layer sizes, e.g. 64 64,32.")
+    parser.add_argument("--experiment-optimizers", nargs="+", choices=["sgd", "momentum"], default=["sgd", "momentum"])
     parser.add_argument("--output-dir", default="results")
     parser.add_argument("--logistic-max-iter", type=int, default=1000)
     args = parser.parse_args()
