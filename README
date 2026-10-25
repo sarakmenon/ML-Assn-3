@@ -1,5 +1,5 @@
 # Neural Network ML Assignment #3
-Team: Ifrah Zainab and Kunju Menon
+Team: Ifrah Zainab (ixz220004) and Kunju Menon (sxm220267)
 
 ## Dataset
 The project uses the **Drug Consumption (Quantified)** dataset from the UCI
@@ -30,5 +30,20 @@ For just one run of the current best validation-selected configuration, use:
 python main.py --activation relu --hidden 64 32 --optimizer momentum --learning-rate 0.001 --momentum 0.9 --epochs 100 --batch-size 32 --seed 42
 ```
 
+To compare SGD and momentum using the same activation, architecture, learning
+rate, data split, initialization seed, and mini-batch order, run:
+
+```powershell
+python main.py --compare-optimizers --activation sigmoid --hidden 64 --learning-rate 0.001 --momentum 0.9 --epochs 100 --batch-size 32 --seed 42
+```
+
+This saves per-epoch validation losses to
+`results/optimizer_comparison.csv` and a comparison plot to
+`results/optimizer_comparison.png`. The output reports each optimizer's
+minimum validation loss and the epoch where it occurred; use the curves to
+compare their progress, since the epoch of the minimum alone does not prove
+which optimizer converged faster.
+
 ## Output files
-The experiment writes files to `results/`. View to see the output metrics and graphs.
+Experiments and optimizer comparisons write files to `results/`. Review the
+output metrics and graphs there.

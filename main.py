@@ -345,6 +345,68 @@ class NeuralNet3:
             "macro_f1": f1_score(y, predictions, average="macro", zero_division=0),
         }
 
+    def compare_optimizers(
+        self,
+        activation,
+        hidden,
+        learning_rate,
+        epochs,
+        batch_size,
+        momentum,
+        seed,
+        output_dir,
+    ):
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        losses = {}
+
+        # reset the weights and shuffle order so the optimizer is the only difference
+        for optimizer in ("sgd", "momentum"):
+            self.initialize_parameters(
+                hidden=hidden, activation=activation, seed=seed
+            )
+            self.train(epochs=epochs,batch_size=batch_size, learning_rate=learning_rate, optimizer=optimizer, momentum=momentum, seed=seed, verbose=False)
+            losses[optimizer] = self.val_losses.copy()
+
+        # keep each epoch's validation loss for the csv and comparison plot
+        results = pd.DataFrame({
+            "epoch": np.arange(1, epochs + 1),
+            "sgd_validation_loss": losses["sgd"],
+            "momentum_validation_loss": losses["momentum"],
+        })
+        results_path = output_dir / "optimizer_comparison.csv"
+        results.to_csv(results_path, index=False)
+
+        plt.figure()
+        for optimizer in ("sgd", "momentum"):
+            # mark the lowest validation loss and when it happened
+            best_epoch = int(np.argmin(losses[optimizer])) + 1
+            best_loss = min(losses[optimizer])
+            plt.plot(
+                results["epoch"],
+                losses[optimizer],
+                label=f"{optimizer} (min {best_loss:.4f}, epoch {best_epoch})",
+            )
+            print(
+                f"{optimizer}: minimum validation loss {best_loss:.4f} "
+                f"at epoch {best_epoch}"
+            )
+
+        plt.xlabel("Epoch")
+        plt.ylabel("Validation loss")
+        plt.title(
+            f"SGD vs. momentum — {activation}, hidden={hidden}, "
+            f"learning rate={learning_rate}"
+        )
+        plt.legend()
+        plt.tight_layout()
+        plot_path = output_dir / "optimizer_comparison.png"
+        plt.savefig(plot_path)
+        plt.close()
+        print(f"Per-epoch validation losses saved to {results_path}")
+        print(f"Optimizer comparison plot saved to {plot_path}")
+        return results
+
     # run all experiment combinations and save the results
     def run_experiments(
         self,
@@ -523,6 +585,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Run the required hyperparameter comparison and baseline.",
     )
+    parser.add_argument(
+        "--compare-optimizers",
+        action="store_true",
+        help="Compare SGD and momentum on the same model configuration.",
+    )
     parser.add_argument("--hidden", nargs="+", type=int, default=[64])
     parser.add_argument(
         "--activation",
@@ -568,6 +635,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # error checking for invalid user inputs
+    if args.run_experiments and args.compare_optimizers:
+        parser.error("--run-experiments and --compare-optimizers cannot be used together.")
     if len(args.hidden) not in [1, 2] or any(size <= 0 for size in args.hidden):
         parser.error("State one or two hidden layers with positive sizes.")
     if args.epochs <= 0 or args.batch_size <= 0:
@@ -598,7 +667,7 @@ if __name__ == "__main__":
 
     print(f"Random seed: {args.seed}")
 
-    # run experiments or single model
+    # run experiments, compare optimizers, or train a single model
     if args.run_experiments:
         neural_network.run_experiments(
             activations=args.experiment_activations,
@@ -611,6 +680,17 @@ if __name__ == "__main__":
             seed=args.seed,
             output_dir=args.output_dir,
             logistic_max_iter=args.logistic_max_iter,
+        )
+    elif args.compare_optimizers:
+        neural_network.compare_optimizers(
+            activation=args.activation,
+            hidden=args.hidden,
+            learning_rate=args.learning_rate,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            momentum=args.momentum,
+            seed=args.seed,
+            output_dir=args.output_dir,
         )
     else:
         neural_network.initialize_parameters(
